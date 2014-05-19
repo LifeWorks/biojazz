@@ -359,81 +359,79 @@ use base qw(Scoring);
                 system("$ENV{ANC_HOME}/anc.pl --report=species $matlab_work/$genome_name.mod");
                 my @facile_model = slurp_file("$matlab_work/$genome_name.eqn");
 
-                $stats_ref->{species_report_flag} = $self->anc_process_species_report("$matlab_work/$genome_name.species.rpt");
-                if ($stats_ref->{species_report_flag} == 0) {
-                    my @anc_species = $self->anc_get_species();
-                    $stats_ref->{num_anc_species} = @anc_species;
-                    printn "ANC NUM SPECIES: ".scalar(@anc_species) if $verbosity > 1;
-                    printn "ANC SPECIES: @anc_species" if $verbosity > 2;
+                $self->anc_process_species_report("$matlab_work/$genome_name.species.rpt");
+                my @anc_species = $self->anc_get_species();
+                $stats_ref->{num_anc_species} = @anc_species;
+                printn "ANC NUM SPECIES: ".scalar(@anc_species) if $verbosity > 1;
+                printn "ANC SPECIES: @anc_species" if $verbosity > 2;
 
-                    #---------------------------------------------------------
-                    # OUTPUT KINASE AND PHOSPHATASE
-                    #---------------------------------------------------------
-                    my @adjacent_kinase_names = map {$_->get_name()} @tg_adjacent_kinases;
-                    my @kinase_gene_names = map {$_->get_upper_ref()->get_upper_ref()->get_name()} @tg_adjacent_kinases;
-                    my @adjacent_phosphatase_names = map {$_->get_name()} @tg_adjacent_phosphatases;
-                    my @phosphatase_gene_names = map {$_->get_upper_ref()->get_upper_ref()->get_name()} @tg_adjacent_phosphatases;
-
-                    my $K1 = 0.0;
-                    if (scalar @adjacent_kinase_names > 0) {
-                        for (my $i = 0; $i < @adjacent_kinase_names; $i++) {
-                            my $pd_name = $adjacent_kinase_names[$i];
-                            my $gene_name = $kinase_gene_names[$i];
-                            my $protein_concentration = 0;
-                            if ($anc_model =~ /Init : \{\s+structure\s?=>\s?$gene_name,\s+IC\s?=>\s?(\S+),/g) {
-                                $protein_concentration = $1 + 0;
-                                $stats_ref->{$gene_name} = $protein_concentration;
-                            }
-                            my @K1s = ();
-                            while ($anc_model =~ /CanBindRule : \{\s+name\s?=>\s?\S$pd_name\s?(TPD\S+)\s?\(\s?(\S)\s?(\S)\s?(\S)\s?(\S)\s?\)\S,\n.*\n.*\n.*\s+kf\s?=>\s?(\S+),\s+kb\s?=>\s?(\S+),\s+kp\s?=>\s?(\S+),/g) {
-                                my $rule_name = 'K1_'.$pd_name.'_'."$1".'_'."$2"."$3"."$4"."$5";
-                                my $rule_rate = ($7 + $8) / $6;
-                                $stats_ref->{$rule_name} = $rule_rate;
-                                push(@K1s, $rule_rate);
-                            }
-                            if (scalar @K1s > 0) {
-                                $K1 = $K1s[0] / $config_ref->{TG_init};
-                                for (my $i = 1; $i < @K1s; $i++) {
-                                    $K1 *= ($K1s[$i] / $config_ref->{TG_init});
-                                }
-                            } else {
-                                die "didn't find the rate of phosphorylation rule";
-                            }
-                            $K1 = $K1**(1/(scalar @K1s));
+                #---------------------------------------------------------
+                # OUTPUT KINASE AND PHOSPHATASE
+                #---------------------------------------------------------
+                my @adjacent_kinase_names = map {$_->get_name()} @tg_adjacent_kinases;
+                my @kinase_gene_names = map {$_->get_upper_ref()->get_upper_ref()->get_name()} @tg_adjacent_kinases;
+                my @adjacent_phosphatase_names = map {$_->get_name()} @tg_adjacent_phosphatases;
+                my @phosphatase_gene_names = map {$_->get_upper_ref()->get_upper_ref()->get_name()} @tg_adjacent_phosphatases;
+                
+                my $K1 = 0.0;
+                if (scalar @adjacent_kinase_names > 0) {
+                    for (my $i = 0; $i < @adjacent_kinase_names; $i++) {
+                        my $pd_name = $adjacent_kinase_names[$i];
+                        my $gene_name = $kinase_gene_names[$i];
+                        my $protein_concentration = 0;
+                        if ($anc_model =~ /Init : \{\s+structure\s?=>\s?$gene_name,\s+IC\s?=>\s?(\S+),/g) {
+                            $protein_concentration = $1 + 0;
+                            $stats_ref->{$gene_name} = $protein_concentration;
                         }
-                    }
-                    $stats_ref->{tg_K1} = $K1;
-
-                    my $K2 = 0.0;
-                    if (scalar @adjacent_phosphatase_names > 0) {
-                        for (my $i = 0; $i < @adjacent_phosphatase_names; $i++) {
-                            my $pd_name = $adjacent_phosphatase_names[$i];
-                            my $gene_name = $phosphatase_gene_names[$i];
-                            my $protein_concentration = 0;
-                            if ($anc_model =~ /Init : \{\s+structure\s?=>\s?$gene_name,\s+IC\s?=>\s?(\S+),/g) {
-                                $protein_concentration = $1 + 0;
-                                $stats_ref->{$gene_name} = $protein_concentration;
-                            }
-                            my @K2s = ();
-                            while ($anc_model =~ /CanBindRule : \{\s+name\s?=>\s?\S$pd_name\s?(TPD\S+)\s?\(\s?(\S)\s?(\S)\s?(\S)\s?(\S)\s?\)\S,\n.*\n.*\n.*\s+kf\s?=>\s?(\S+),\s+kb\s?=>\s?(\S+),\s+kp\s?=>\s?(\S+),/g) {
-                                my $rule_name = 'K2_'.$pd_name.'_'."$1".'_'."$2"."$3"."$4"."$5";
-                                my $rule_rate = ($7 + $8) / $6;
-                                $stats_ref->{$rule_name} = $rule_rate;
-                                push(@K2s, $rule_rate);
-                            }
-                            if (scalar @K2s > 0) {
-                                $K2 = $K2s[0] / $config_ref->{TG_init};
-                                for (my $i = 1; $i < @K2s; $i++) {
-                                    $K2 *= ($K2s[$i] / $config_ref->{TG_init});
-                                }
-                            } else {
-                                die "didn't find the rate of phosphorylation rule";
-                            }
-                            $K2 = $K2**(1/(scalar @K2s));
+                        my @K1s = ();
+                        while ($anc_model =~ /CanBindRule : \{\s+name\s?=>\s?\S$pd_name\s?(TPD\S+)\s?\(\s?(\S)\s?(\S)\s?(\S)\s?(\S)\s?\)\S,\n.*\n.*\n.*\s+kf\s?=>\s?(\S+),\s+kb\s?=>\s?(\S+),\s+kp\s?=>\s?(\S+),/g) {
+                            my $rule_name = 'K1_'.$pd_name.'_'."$1".'_'."$2"."$3"."$4"."$5";
+                            my $rule_rate = ($7 + $8) / $6;
+                            $stats_ref->{$rule_name} = $rule_rate;
+                            push(@K1s, $rule_rate);
                         }
+                        if (scalar @K1s > 0) {
+                            $K1 = $K1s[0] / $config_ref->{TG_init};
+                            for (my $i = 1; $i < @K1s; $i++) {
+                                $K1 *= ($K1s[$i] / $config_ref->{TG_init});
+                            }
+                        } else {
+                            die "didn't find the rate of phosphorylation rule";
+                        }
+                        $K1 = $K1**(1/(scalar @K1s));
                     }
-                    $stats_ref->{tg_K2} = $K2;
                 }
+                $stats_ref->{tg_K1} = $K1;
+
+                my $K2 = 0.0;
+                if (scalar @adjacent_phosphatase_names > 0) {
+                    for (my $i = 0; $i < @adjacent_phosphatase_names; $i++) {
+                        my $pd_name = $adjacent_phosphatase_names[$i];
+                        my $gene_name = $phosphatase_gene_names[$i];
+                        my $protein_concentration = 0;
+                        if ($anc_model =~ /Init : \{\s+structure\s?=>\s?$gene_name,\s+IC\s?=>\s?(\S+),/g) {
+                            $protein_concentration = $1 + 0;
+                            $stats_ref->{$gene_name} = $protein_concentration;
+                        }
+                        my @K2s = ();
+                        while ($anc_model =~ /CanBindRule : \{\s+name\s?=>\s?\S$pd_name\s?(TPD\S+)\s?\(\s?(\S)\s?(\S)\s?(\S)\s?(\S)\s?\)\S,\n.*\n.*\n.*\s+kf\s?=>\s?(\S+),\s+kb\s?=>\s?(\S+),\s+kp\s?=>\s?(\S+),/g) {
+                            my $rule_name = 'K2_'.$pd_name.'_'."$1".'_'."$2"."$3"."$4"."$5";
+                            my $rule_rate = ($7 + $8) / $6;
+                            $stats_ref->{$rule_name} = $rule_rate;
+                            push(@K2s, $rule_rate);
+                        }
+                        if (scalar @K2s > 0) {
+                            $K2 = $K2s[0] / $config_ref->{TG_init};
+                            for (my $i = 1; $i < @K2s; $i++) {
+                                $K2 *= ($K2s[$i] / $config_ref->{TG_init});
+                            }
+                        } else {
+                            die "didn't find the rate of phosphorylation rule";
+                        }
+                        $K2 = $K2**(1/(scalar @K2s));
+                    }
+                }
+                $stats_ref->{tg_K2} = $K2;
             }
         }
 
@@ -441,13 +439,15 @@ use base qw(Scoring);
         # REMOVE FILES
         #---------------------------------------------------------
         if (defined $local_dir) {
-            `echo $local_dir/matlab/${genome_name}*     | xargs rm -f`;
-            #my $file_glob = "$matlab_work/${genome_name}*";
-            #my @files = glob($file_glob);
-            #if (@files) {
-            #    printn "Moving @files to $work_dir/matlab" if $verbosity > 1;
-            #    system("mv @files $work_dir/matlab");
-            #}
+            #`echo $local_dir/matlab/G*     | xargs rm -f`;
+            #`echo $config_ref->{local_dir}/matlab/G*     | xargs rm -f`;
+ 
+            my $file_glob = "$matlab_work/${genome_name}*";
+            my @files = glob($file_glob);
+            if (@files) {
+                printn "Moving @files to $work_dir/matlab" if $verbosity > 1;
+                system("mv @files $work_dir/matlab");
+            }
         }
     }
 }
@@ -520,8 +520,8 @@ Keq_ratio_min = 1e-2
 #----------------------------------------
 max_external_iterations = -1
 max_internal_iterations = -1
-max_complex_size = 3
-max_species = 512
+max_complex_size = 8
+max_species = 256
 max_csite_bound_to_msite_number = 1
 default_max_count = 2          # this prevents polymerization (see ANC manual)
 default_steric_factor = 1e3    # in micro-mol/L
@@ -561,9 +561,8 @@ delta_threshold = 0.01          # relative measure of amplitude used to filter o
 amplitude_threshold = 0.01      # absolute measure of amplitude
 ultrasensitivity_threshold = 5  # ratio of 2nd step over 1st step
 
-w_n = 0.0
-w_c = 0.5
-w_e = 0.5
+w_n = 1.0
+w_c = 1.0
 w_s = 1.0
 w_a = 1.0
 w_u = 1.0
@@ -586,8 +585,8 @@ hill_k = 5
 TG_init = 1000  # uM
 cell_volume = 1e-18             # 1e-18L --> sub-cellular volume
 
-lg_binding_profile = 0100111010
-tg_binding_profile = 0111000110
+lg_binding_profile = 0110011010
+tg_binding_profile = 1011101000
 
 END
 
@@ -681,12 +680,12 @@ END
                                     UNUSED => "0",
                                 },
                                 {
-                                    type => "csite",
+                                    type => "bsite",
                                     substrate_polarity => 0,
-                                    binding_profile => "0010010100",
-                                    kf_profile => "11010111000001100000",
-                                    kb_profile => "11101010101110011000",
-                                    kp_profile => "11001011010100010000",
+                                    binding_profile => "0101111111",
+                                    kf_profile => "11101101111101100000",
+                                    kb_profile => "10010101100001100111",
+                                    kp_profile => "11110000010000110010",
                                     Keq_ratio => 1.0,
                                     kf_polarity_mask => "0",
                                     kb_polarity_mask => "0",
@@ -712,9 +711,9 @@ END
                             RT_phi => 1.0,
                             protodomains => [
                                 {
-                                    type => "msite",
+                                    type => "bsite",
                                     substrate_polarity => 0,
-                                    binding_profile => BindingProfile->binding_complement("0010010100")->sprint(),
+                                    binding_profile => BindingProfile->binding_complement("0101111111")->sprint(),
                                     kf_profile => "01111111010110111000",
                                     kb_profile => "10011001111111001000",
                                     kp_profile => "01110100110011000011",
@@ -758,36 +757,20 @@ END
                             RT_phi => 0.0,
                             protodomains => [
                                 {
-                                    type => "csite",
-                                    substrate_polarity => 1,
-                                    binding_profile => "0010010100",
-                                    kf_profile => "11010111000001100000",
-                                    kb_profile => "11101010101110011000",
-                                    kp_profile => "11001011010100010000",
+                                    type => "bsite",
+                                    substrate_polarity => 0,
+                                    binding_profile => BindingProfile->binding_complement("0101111111")->sprint(),
+                                    kf_profile => "01111111010110111000",
+                                    kb_profile => "10011001111111001000",
+                                    kp_profile => "01110100110011000011",
                                     Keq_ratio => 1.0,
                                     kf_polarity_mask => "0",
                                     kb_polarity_mask => "0",
-                                    kf_conformation_mask => "11111100111111001110",
+                                    kf_conformation_mask => "11101101111111111000",
                                     kb_conformation_mask => "0",
                                     kp_conformation_mask => "0",
                                     UNUSED => "0",
                                 },
-                            ],
-                            UNUSED => "0",
-                        },
-                    ],
-                },
-                {
-                    START_CODE => undef, STOP_CODE => undef, # these fields will be filled in
-                    regulated_concentration => 0.1, # uM
-                    UNUSED => "0000",
-                    domains => [
-                        {
-                            allosteric_flag => 0,
-                            RT_transition_rate => 1.0,
-                            TR_transition_rate => 1.0,
-                            RT_phi => 0.0,
-                            protodomains => [
                                 {
                                     type => "csite",
                                     substrate_polarity => 1,
