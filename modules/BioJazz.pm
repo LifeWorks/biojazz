@@ -362,10 +362,10 @@ sub rescore_genomes {
     my @genome_files = (glob $file_glob);
 
     my $data_dir = "$config_ref->{work_dir}/$TAG/report";
-    my $file_name = "$data_dir/K1_K2_output.csv";
+    my $file_name = "$data_dir/K1_K2_and_concentrate_output.csv";
     open my $data_file, ">> $file_name" or die "$file_name: $!";
     my $csv = Text::CSV->new({binary => 1, eol => "\n"});
-    my @attributeNames = ("K1", "K2");
+    my @attributeNames = ("K1", "K2","K1_concentrate","K2_concentrate");
     $csv->print($data_file, \@attributeNames);
 
     for (my $i = 0; $i < @genome_files; $i++) {
@@ -375,6 +375,8 @@ sub rescore_genomes {
         my @attributes = ();
         push(@attributes, $genome_model_ref->get_stats_ref()->{tg_K1});
         push(@attributes, $genome_model_ref->get_stats_ref()->{tg_K2});
+        push(@attributes, $genome_model_ref->get_stats_ref()->{tg_K1_concentrate});
+        push(@attributes, $genome_model_ref->get_stats_ref()->{tg_K2_concentrate});
         $csv->print($data_file, \@attributes);
 
         undef $genome_model_ref;
