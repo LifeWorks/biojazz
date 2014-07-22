@@ -381,7 +381,7 @@ use base qw(Scoring);
                             my $pd_name = $adjacent_kinase_names[$i];
                             my $gene_name = $kinase_gene_names[$i];
                             my $protein_concentration = 0;
-                            if ($anc_model =~ /Init : \{\s+structure\s?=>\s?$gene_name,\s+IC\s?=>\s?(\S+),/g) {
+                            while ($anc_model =~ /Init : \{\s+structure\s?=>\s?$gene_name,\s+IC\s?=>\s?(\S+),/g) {
                                 $protein_concentration = $1 + 0;
                                 $stats_ref->{$gene_name} = $protein_concentration;
                             }
