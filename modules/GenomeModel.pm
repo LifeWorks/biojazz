@@ -1527,7 +1527,15 @@ use base qw(Model);
                 printn "ERROR: mutation_rate_global is not set in proper range";
                 exit;
             }
-            $self->check();
+            if ($self->check()) {
+                my @domain_refs = $self->get_domain_parser_ref()->get_object_instances();
+                foreach my $domain_ref (@domain_refs) {
+                    $domain_ref->set_field("allosteric_flag",0);
+                }
+
+                $self->parse();
+                $self->check();
+            }
 
             $mutation_count += $point_mutation_count;
             $mutation_count += $duplication_bits + $deletion_bits + $shuffling_bits;
